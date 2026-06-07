@@ -1,99 +1,45 @@
 # gh-repo-sync
 
-Bash tooling to mirror every GitHub repository your account can access into a
-local `<owner>/<repo>/` tree, and generate optional cloc-based code analytics.
+Local mirror of every GitHub repository your account can access, into
+`GitHub/<owner>/<repo>/` — plus fork pruning, cloc analytics, and a Bun CLI for
+your code stats. Only the tooling is tracked; the mirror lives under a
+gitignored `GitHub/`.
 
-The mirrored repositories live under a gitignored `GitHub/` directory and are
-**not** part of this repository — only the tooling is. It also includes
-[`code-stats/`](code-stats/), a Bun CLI that reports how much code **you** wrote
-across the whole mirror.
+> ⚠️ **Vibe-coded project — use at your own risk.** Built fast with AI and only
+> lightly reviewed. It **deletes** local clones (prune) and **overwrites** local
+> state on sync. Read what a command does and keep `--dry-run` handy before
+> pointing it at anything you care about.
 
-## Scripts
+## Tools
 
-| Script | What it does |
-|--------|--------------|
-| `scripts/sync-github-repos.sh` | Clone new repos and fetch all branches for existing ones, grouped by owner. Writes `GitHub/.sync-state/accessible-repos.json`. |
-| `scripts/generate-analytics.sh` | Produce cloc analytics per owner, an aggregate, and a local `OVERVIEW.md` (gitignored). |
-| `scripts/prune-repos.sh` | Delete every fork plus any repo you neither own nor have commits in, adding each to `.syncignore`. Runs automatically after a sync (disable with `--no-prune`). |
-
-## Requirements
-
-- [`gh`](https://cli.github.com/) (authenticated: `gh auth login`)
-- `git`, `jq`
-- `cloc` (only for analytics)
-- [`bun`](https://bun.sh) (only for `code-stats`)
+| Command | What it does |
+|---------|--------------|
+| `scripts/sync-github-repos.sh` | Clone/fetch every accessible repo, grouped by owner. Auto-prunes at the end. |
+| `scripts/prune-repos.sh` | Delete forks + repos you're not involved in, and add them to `.syncignore`. |
+| `scripts/generate-analytics.sh` | cloc analytics per owner + aggregate + a gitignored `OVERVIEW.md`. |
+| `code-stats/` (Bun CLI) | How much code **you** wrote across the mirror — by day, weekday, language. |
 
 ## Usage
 
 ```bash
-# Mirror every accessible repo into ./GitHub/<owner>/<repo>/
-./scripts/sync-github-repos.sh
-
-# Common options
-./scripts/sync-github-repos.sh --dry-run         # preview without cloning/fetching
-./scripts/sync-github-repos.sh -j 8              # N repos in parallel (default: CPU cores)
-./scripts/sync-github-repos.sh --skip-archived   # skip archived repos
-./scripts/sync-github-repos.sh --skip-forks      # skip forks
-./scripts/sync-github-repos.sh --sync-root PATH  # custom destination root
-
-# Regenerate analytics (writes GitHub/**/analytics.md and ./OVERVIEW.md)
-./scripts/generate-analytics.sh
-
-# Prune repos you don't own and have no commits in (preview first!)
-./scripts/prune-repos.sh --dry-run     # show what would be removed
-./scripts/prune-repos.sh               # delete them and add to .syncignore
-
-# Skip the automatic prune at the end of a sync
-./scripts/sync-github-repos.sh --no-prune
+gh auth login                       # one-time
+./scripts/sync-github-repos.sh      # mirror everything (auto-prunes)
+./scripts/sync-github-repos.sh -n   # dry run
+./scripts/prune-repos.sh --dry-run  # preview what prune would delete
+./scripts/generate-analytics.sh     # regenerate analytics + OVERVIEW.md
+cd code-stats && bun cli.ts         # your code stats (--whoami to set identity)
 ```
 
-Run any script with `--help` for the full option list.
+Drop a `.syncignore` in the project root (one glob per line, e.g. `owner/repo`
+or `owner/*`) to skip repos — see [`.syncignore.example`](.syncignore.example).
+Run any script with `--help`.
 
-> Pruning deletes local clones and appends them to `.syncignore` so they are
-> not re-cloned. Kept: your own non-fork repos and non-fork repos you've
-> committed to. Pruned: all forks (your work lives on GitHub) and any other
-> repo you're not involved in. Repos with untracked files or stashes are
-> skipped unless you pass `--force`.
-
-## Skipping repos (`.syncignore`)
-
-Create a `.syncignore` file in the project root to skip specific repositories —
-one glob per line, matched against `owner/repo` (`#` starts a comment):
-
-```
-octocat/Hello-World     # one specific repo
-myorg/*                 # a whole owner/org
-*/secret-*              # any repo whose name starts with "secret-"
-```
-
-Matched repos are never cloned or updated; existing local clones are left
-untouched. See [`.syncignore.example`](.syncignore.example). Your real
-`.syncignore` is gitignored, so private repo names stay local.
-
-## Code stats
-
-[`code-stats/`](code-stats/) is a standalone [Bun](https://bun.sh) CLI that
-reports how much code **you** wrote across all mirrored repos — by day, weekday,
-and language — counting your commits across identities (set in a gitignored
-`me.json`).
-
-```bash
-cd code-stats
-bun cli.ts             # last 7 days, by weekday + language
-bun cli.ts --whoami    # discover your author identities, then edit me.json
-```
-
-See [`code-stats/README.md`](code-stats/README.md) for all flags.
+**Requires:** `gh`, `git`, `jq` (+ `cloc` for analytics, `bun` for code-stats).
 
 ## Layout
 
 ```
-scripts/                # the sync / analytics / prune tooling
-code-stats/             # Bun CLI for per-author code stats (me.json gitignored)
-GitHub/                 # gitignored — your local mirror, not in this repo
-  <owner>/
-    <repo>/             # git clone
-    analytics.md        # generated per-owner stats
-  analytics.md          # generated aggregate stats
-OVERVIEW.md             # gitignored — generated local overview (contains data)
+scripts/      # sync / prune / analytics
+code-stats/   # Bun code-stats CLI (your me.json is gitignored)
+GitHub/       # gitignored — the local mirror itself
 ```
