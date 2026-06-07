@@ -53,6 +53,11 @@ SKIP_ARCHIVED=0
 SKIP_FORKS=0
 AFFILIATIONS="owner,collaborator,organization_member,outside"
 
+# Repos matching a glob in this file are skipped entirely (never cloned or
+# updated). One "owner/repo" glob per line; '#' comments and blanks ignored.
+DEFAULT_IGNORE_FILE="${SCRIPT_DIR}/.syncignore"
+IGNORE_FILE="$DEFAULT_IGNORE_FILE"
+
 usage() {
   cat <<'EOF'
 Usage: sync-github-repos.sh [OPTIONS] [SYNC_ROOT]
@@ -70,9 +75,16 @@ Options:
   --skip-archived      Skip archived repositories
   --skip-forks         Skip forked repositories
   --sync-root PATH     Destination root directory
+  --ignore-file PATH   Skip repos matching glob patterns in PATH
+                       (default: .syncignore beside this script, if present)
+
+Ignore file (.syncignore):
+  One glob per line, matched against "owner/repo"; '#' starts a comment.
+  Examples:  octocat/Hello-World    myorg/*    */secret-*
 
 Environment:
   GITHUB_SYNC_ROOT     Default sync root
+  GITHUB_SYNC_IGNORE   Default ignore-file path
 
 Requires: gh (authenticated), git, jq
 EOF
@@ -96,6 +108,11 @@ parse_args() {
         SYNC_ROOT="$2"
         shift 2
         ;;
+      --ignore-file)
+        [[ $# -ge 2 ]] || die "--ignore-file requires a path"
+        IGNORE_FILE="$2"
+        shift 2
+        ;;
       -*)
         die "Unknown option: $1 (try --help)"
         ;;
@@ -108,6 +125,10 @@ parse_args() {
 
   if [[ -n "${GITHUB_SYNC_ROOT:-}" && "$SYNC_ROOT" == "$DEFAULT_SYNC_ROOT" ]]; then
     SYNC_ROOT="$GITHUB_SYNC_ROOT"
+  fi
+
+  if [[ -n "${GITHUB_SYNC_IGNORE:-}" && "$IGNORE_FILE" == "$DEFAULT_IGNORE_FILE" ]]; then
+    IGNORE_FILE="$GITHUB_SYNC_IGNORE"
   fi
 
   if ! [[ "$JOBS" =~ ^[1-9][0-9]*$ ]]; then
@@ -146,6 +167,14 @@ list_repos() {
     "user/repos?per_page=100&affiliation=${AFFILIATIONS}&sort=full_name" \
     --paginate \
     --jq "$jq_query"
+}
+
+# Read skip patterns from the ignore file: one "owner/repo" glob per line,
+# with '#' comments and blank lines stripped. Empty output if no file.
+load_ignore_patterns() {
+  [[ -f "$IGNORE_FILE" ]] || return 0
+  sed -E 's/#.*$//; s/^[[:space:]]+//; s/[[:space:]]+$//' "$IGNORE_FILE" \
+    | grep -v '^[[:space:]]*$' || true
 }
 
 sync_one() {
@@ -280,12 +309,49 @@ main() {
   log "Fetching repository list from GitHub..."
   local count=0
 
-  # Build the manifest (full_name<TAB>target) in a single awk pass over the
-  # TSV from GitHub — no per-repo jq subprocess.
+  local ignore_patterns
+  ignore_patterns="$(load_ignore_patterns)"
+  if [[ -n "$ignore_patterns" ]]; then
+    log "Ignore file: $IGNORE_FILE ($(printf '%s\n' "$ignore_patterns" | grep -c . || true) pattern(s))"
+  fi
+
+  # Build the manifest (full_name<TAB>target) in a single awk pass over the TSV
+  # from GitHub — no per-repo jq subprocess. Repos matching a .syncignore glob
+  # are dropped here, so they are never cloned or updated.
+  local skipfile
+  skipfile="$(mktemp)"
   list_repos \
-    | awk -F'\t' -v root="$SYNC_ROOT" 'NF { printf "%s\t%s/%s/%s\n", $3, root, $1, $2 }' \
+    | IGNORE_PATTERNS="$ignore_patterns" awk -F'\t' -v root="$SYNC_ROOT" -v skipfile="$skipfile" '
+        function glob2re(p,   re, i, c) {
+          re = "^"
+          for (i = 1; i <= length(p); i++) {
+            c = substr(p, i, 1)
+            if (c == "*") re = re ".*"
+            else if (c == "?") re = re "."
+            else if (c ~ /[A-Za-z0-9_\/-]/) re = re c
+            else re = re "\\" c
+          }
+          return re "$"
+        }
+        BEGIN {
+          n = split(ENVIRON["IGNORE_PATTERNS"], raw, "\n")
+          for (i = 1; i <= n; i++) if (raw[i] != "") pat[++npat] = glob2re(raw[i])
+        }
+        NF {
+          for (i = 1; i <= npat; i++) if ($3 ~ pat[i]) { skipped++; next }
+          printf "%s\t%s/%s/%s\n", $3, root, $1, $2
+        }
+        END { print (skipped + 0) > skipfile }
+      ' \
     >"$manifest"
+
+  local ignored=0
+  ignored="$(cat "$skipfile" 2>/dev/null || echo 0)"
+  rm -f "$skipfile"
   count="$(wc -l <"$manifest" | tr -d ' ')"
+  if [[ "${ignored:-0}" -gt 0 ]]; then
+    log "Skipped $ignored repo(s) via ignore file"
+  fi
 
   local owner_count
   owner_count="$(cut -f2 "$manifest" | sed "s|${SYNC_ROOT}/||" | cut -d/ -f1 | sort -u | wc -l | tr -d ' ')"

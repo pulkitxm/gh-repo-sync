@@ -1,0 +1,20 @@
+# .syncignore — repositories to skip when running sync-github-repos.sh
+#
+# Copy this file to ".syncignore" (same directory as the script) and list the
+# repositories you do NOT want cloned or updated. Matched repos are skipped
+# entirely; any existing local clone is left on disk untouched.
+#
+# Rules:
+#   - One glob pattern per line, matched against "owner/repo".
+#   - '*' matches any run of characters, '?' matches a single character.
+#   - Lines starting with '#' and blank lines are ignored.
+#   - Trailing '# comments' on a pattern line are stripped too.
+#
+# Examples:
+#   octocat/Hello-World      # one specific repo
+#   myorg/*                  # every repo under an owner/org
+#   */secret-*               # any repo whose name starts with "secret-"
+#   *-fork                   # any repo whose name ends with "-fork"
+#
+# Note: your real .syncignore is gitignored, so private repo names you put in
+# it stay local and are never committed.

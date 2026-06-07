@@ -7,5 +7,9 @@
 # Design docs / WIP from other work — keep this repo tooling-only
 /docs/
 
+# Your personal repo skip-list may contain private repo names — keep it local.
+# (.syncignore.example is tracked as documentation.)
+/.syncignore
+
 # macOS noise
 .DS_Store
