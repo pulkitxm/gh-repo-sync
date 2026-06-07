@@ -9,7 +9,7 @@
 #       delete the local clone AND append "owner/repo" to the ignore file
 #       so future syncs skip it.
 #
-# Repos with uncommitted local changes / stashes are skipped unless --force.
+# Repos with untracked files or stashes are skipped unless --force.
 # Aborts if your identity can't be determined (so it can never delete blindly).
 #
 
@@ -43,7 +43,7 @@ repo under <sync-root>/<owner>/<repo>/:
 Options:
   -h, --help          Show this help
   -n, --dry-run       Show what would be pruned; delete nothing
-  --force             Prune even repos with uncommitted local changes
+  --force             Prune even repos with untracked files or stashes
   --me LOGIN          Your GitHub login (default: gh api user)
   --author PATTERN    Extra author pattern counted as "you" (repeatable)
   --sync-root PATH    Mirror root (default: ../GitHub)
@@ -93,11 +93,16 @@ have_my_commit() {
   [[ -n "$sha" ]]
 }
 
-# True if the repo has uncommitted changes or stashed work worth protecting.
+# True if the repo holds work that deleting the clone would IRREPLACEABLY lose:
+# stashes or untracked (non-ignored) files. Modified/deleted tracked files and
+# "unpushed" commits are deliberately ignored — their content is in git/on the
+# remote, and the sync leaves stale worktrees + extra local branches that look
+# like huge diffs but are not real work. Only stashes and untracked files are
+# things the sync never fabricates.
 is_dirty() {
   local repo="$1"
-  [[ -n "$(git -C "$repo" status --porcelain 2>/dev/null)" ]] && return 0
   [[ -n "$(git -C "$repo" stash list 2>/dev/null)" ]] && return 0
+  [[ -n "$(git -C "$repo" ls-files --others --exclude-standard 2>/dev/null | head -1)" ]] && return 0
   return 1
 }
 
@@ -184,7 +189,7 @@ main() {
     fi
     # Protect dirty repos unless forced.
     if [[ "$FORCE" -ne 1 ]] && is_dirty "$d"; then
-      log "SKIP (uncommitted local changes): $full_name"
+      log "SKIP (has stashes or untracked files): $full_name"
       skipped=$((skipped + 1))
       continue
     fi

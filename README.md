@@ -49,7 +49,7 @@ Run any script with `--help` for the full option list.
 > Pruning deletes local clones and appends them to `.syncignore` so they are
 > not re-cloned. Kept: repos you've committed to, and your own non-fork repos.
 > Pruned: everything else, including forks you own with no commits. Repos with
-> uncommitted local changes are skipped unless you pass `--force`.
+> untracked files or stashes are skipped unless you pass `--force`.
 
 ## Skipping repos (`.syncignore`)
 
