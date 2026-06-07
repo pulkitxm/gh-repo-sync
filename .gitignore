@@ -11,9 +11,6 @@
 # (.syncignore.example is tracked as documentation.)
 /.syncignore
 
-# Other-chat WIP — keep this repo tooling-only
-/code-stats/
-
 # Generated local overview (contains your data) — never publish
 /OVERVIEW.md
 

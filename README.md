@@ -4,7 +4,9 @@ Bash tooling to mirror every GitHub repository your account can access into a
 local `<owner>/<repo>/` tree, and generate optional cloc-based code analytics.
 
 The mirrored repositories live under a gitignored `GitHub/` directory and are
-**not** part of this repository — only the scripts are.
+**not** part of this repository — only the tooling is. It also includes
+[`code-stats/`](code-stats/), a Bun CLI that reports how much code **you** wrote
+across the whole mirror.
 
 ## Scripts
 
@@ -19,6 +21,7 @@ The mirrored repositories live under a gitignored `GitHub/` directory and are
 - [`gh`](https://cli.github.com/) (authenticated: `gh auth login`)
 - `git`, `jq`
 - `cloc` (only for analytics)
+- [`bun`](https://bun.sh) (only for `code-stats`)
 
 ## Usage
 
@@ -67,10 +70,26 @@ Matched repos are never cloned or updated; existing local clones are left
 untouched. See [`.syncignore.example`](.syncignore.example). Your real
 `.syncignore` is gitignored, so private repo names stay local.
 
+## Code stats
+
+[`code-stats/`](code-stats/) is a standalone [Bun](https://bun.sh) CLI that
+reports how much code **you** wrote across all mirrored repos — by day, weekday,
+and language — counting your commits across identities (set in a gitignored
+`me.json`).
+
+```bash
+cd code-stats
+bun cli.ts             # last 7 days, by weekday + language
+bun cli.ts --whoami    # discover your author identities, then edit me.json
+```
+
+See [`code-stats/README.md`](code-stats/README.md) for all flags.
+
 ## Layout
 
 ```
-scripts/                # the tooling (tracked)
+scripts/                # the sync / analytics / prune tooling
+code-stats/             # Bun CLI for per-author code stats (me.json gitignored)
 GitHub/                 # gitignored — your local mirror, not in this repo
   <owner>/
     <repo>/             # git clone
