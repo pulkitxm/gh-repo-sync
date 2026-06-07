@@ -3,7 +3,7 @@
 # Generate analytics markdown using cloc:
 #   GitHub/<owner>/analytics.md  — per-owner stats
 #   GitHub/analytics.md          — aggregate across all owners
-#   README.md                    — root overview with links and inaccessible repos
+#   OVERVIEW.md (gitignored)     — local overview with links and inaccessible repos
 #
 
 set -euo pipefail
@@ -24,7 +24,7 @@ Usage: generate-analytics.sh [OPTIONS] [SYNC_ROOT]
 Generate cloc-based analytics markdown for each owner and the mirror root.
 
 Options:
-  --root-only    Skip per-owner files; only GitHub/analytics.md + README.md
+  --root-only    Skip per-owner files; only GitHub/analytics.md + OVERVIEW.md
 EOF
 }
 
@@ -352,7 +352,7 @@ write_root_analytics() {
   } >"${SYNC_ROOT}/analytics.md"
 }
 
-write_readme() {
+write_overview() {
   local accessible_json="$1"
   local failures_json="${2:-[]}"
 
@@ -457,7 +457,7 @@ write_readme() {
     echo "  analytics.md"
     echo '```'
     echo ""
-  } >"${PROJECT_ROOT}/README.md"
+  } >"${PROJECT_ROOT}/OVERVIEW.md"
 }
 
 main() {
@@ -487,7 +487,7 @@ main() {
     done
   else
     log "Skipping per-owner analytics (--root-only)"
-    # Ensure cloc cache exists for root/README aggregation
+    # Ensure cloc cache exists for root/overview aggregation
     for owner in $(discover_owners); do
       local owner_dir="${SYNC_ROOT}/${owner}"
       [[ -f "${owner_dir}/.cloc-cache.json" ]] && continue
@@ -497,10 +497,10 @@ main() {
   fi
 
   write_root_analytics
-  write_readme "$accessible" "$failures"
+  write_overview "$accessible" "$failures"
 
   log "Wrote ${SYNC_ROOT}/analytics.md and per-owner analytics.md files"
-  log "Wrote ${PROJECT_ROOT}/README.md"
+  log "Wrote ${PROJECT_ROOT}/OVERVIEW.md"
 }
 
 main "$@"
