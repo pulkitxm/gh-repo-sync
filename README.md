@@ -12,7 +12,7 @@ The mirrored repositories live under a gitignored `GitHub/` directory and are
 |--------|--------------|
 | `scripts/sync-github-repos.sh` | Clone new repos and fetch all branches for existing ones, grouped by owner. Writes `GitHub/.sync-state/accessible-repos.json`. |
 | `scripts/generate-analytics.sh` | Produce cloc analytics per owner, an aggregate, and a local `OVERVIEW.md` (gitignored). |
-| `scripts/prune-repos.sh` | Delete mirrored repos you have no commits in — except your own non-fork repos — and add each to `.syncignore`. Runs automatically after a sync (disable with `--no-prune`). |
+| `scripts/prune-repos.sh` | Delete every fork plus any repo you neither own nor have commits in, adding each to `.syncignore`. Runs automatically after a sync (disable with `--no-prune`). |
 
 ## Requirements
 
@@ -47,9 +47,10 @@ The mirrored repositories live under a gitignored `GitHub/` directory and are
 Run any script with `--help` for the full option list.
 
 > Pruning deletes local clones and appends them to `.syncignore` so they are
-> not re-cloned. Kept: repos you've committed to, and your own non-fork repos.
-> Pruned: everything else, including forks you own with no commits. Repos with
-> untracked files or stashes are skipped unless you pass `--force`.
+> not re-cloned. Kept: your own non-fork repos and non-fork repos you've
+> committed to. Pruned: all forks (your work lives on GitHub) and any other
+> repo you're not involved in. Repos with untracked files or stashes are
+> skipped unless you pass `--force`.
 
 ## Skipping repos (`.syncignore`)
 

@@ -3,11 +3,11 @@
 # prune-repos.sh — remove locally-mirrored repositories you are not involved in.
 #
 # For every cloned repo under <sync-root>/<owner>/<repo>/:
-#   - KEEP if you authored >= 1 commit on any branch (by your identities)
-#   - KEEP if it's your own ORIGINAL repo (you own it and it isn't a fork)
-#   - otherwise PRUNE (includes forks you own but never committed to):
-#       delete the local clone AND append "owner/repo" to the ignore file
-#       so future syncs skip it.
+#   - PRUNE every fork — your commits live on GitHub, the clone is just clutter
+#   - otherwise KEEP if you own it OR you authored >= 1 commit (your own repos
+#     and ones you collaborate on)
+#   - PRUNE the rest, deleting the clone AND appending "owner/repo" to the
+#     ignore file so future syncs skip it.
 #
 # Repos with untracked files or stashes are skipped unless --force.
 # Aborts if your identity can't be determined (so it can never delete blindly).
@@ -35,10 +35,9 @@ Usage: prune-repos.sh [OPTIONS]
 
 Remove locally-mirrored repositories you are not involved in. For each cloned
 repo under <sync-root>/<owner>/<repo>/:
-  - KEEP if you have at least one commit on any branch
-  - KEEP if it's your own original repo (you own it and it is not a fork)
-  - otherwise DELETE the local clone and add "owner/repo" to the ignore file
-    (this includes forks you own but have no commits in)
+  - DELETE every fork (your commits live on GitHub; the clone is clutter)
+  - otherwise KEEP if you own it or have at least one commit
+  - DELETE the rest, adding "owner/repo" to the ignore file
 
 Options:
   -h, --help          Show this help
@@ -104,7 +103,11 @@ have_my_commit() {
 is_dirty() {
   local repo="$1"
   [[ -n "$(git -C "$repo" stash list 2>/dev/null)" ]] && return 0
-  [[ -n "$(git -C "$repo" ls-files --others --exclude-standard 2>/dev/null | head -1)" ]] && return 0
+  # Untracked files, excluding OS/editor junk (macOS .DS_Store etc. get created
+  # just by opening a folder in Finder and are not real work).
+  [[ -n "$(git -C "$repo" ls-files --others --exclude-standard \
+        -x '.DS_Store' -x '._*' -x '.Spotlight-V100' -x '.Trashes' \
+        -x 'Thumbs.db' -x 'Desktop.ini' 2>/dev/null | head -1)" ]] && return 0
   return 1
 }
 
@@ -178,16 +181,14 @@ main() {
 
     owner_lc="$(printf '%s' "$owner" | tr 'A-Z' 'a-z')"
 
-    # Keep: you have a commit in it (any branch).
-    if have_my_commit "$d"; then
-      kept=$((kept + 1))
-      continue
-    fi
-    # Keep: your own ORIGINAL repo (you own it and it is not a fork).
-    # Forks you own but never committed to fall through to the prune path.
-    if [[ "$owner_lc" == "$me_login_lc" ]] && ! is_fork "$full_name"; then
-      kept=$((kept + 1))
-      continue
+    # Every fork is pruned — your commits live on GitHub, so the local clone is
+    # just clutter. Only NON-fork repos are kept: ones you own, or ones you have
+    # committed to (e.g. repos you collaborate on).
+    if ! is_fork "$full_name"; then
+      if [[ "$owner_lc" == "$me_login_lc" ]] || have_my_commit "$d"; then
+        kept=$((kept + 1))
+        continue
+      fi
     fi
     # Protect dirty repos unless forced.
     if [[ "$FORCE" -ne 1 ]] && is_dirty "$d"; then
