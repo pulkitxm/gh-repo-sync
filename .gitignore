@@ -1,0 +1,11 @@
+# Synced GitHub repositories (43GB+ of nested clones) — never version-control this
+/GitHub/
+
+# Local sync state / analytics data
+.sync-state/
+
+# Design docs / WIP from other work — keep this repo tooling-only
+/docs/
+
+# macOS noise
+.DS_Store
