@@ -69,18 +69,20 @@ parse_args() {
   done
 }
 
-# Build the de-duplicated list of author patterns that count as "you":
-# your login + git user.name/email + any --author extras.
+# Build the list of author patterns that count as "you": your GitHub login and
+# commit email (plus any --author extras). The git display name is excluded on
+# purpose — too generic to match reliably.
 detect_authors() {
-  local email name
+  local email
   email="$(git config --get user.email 2>/dev/null || true)"
-  name="$(git config --get user.name 2>/dev/null || true)"
 
-  # Duplicates are harmless — git log treats repeated --author as OR.
+  # Match ONLY your GitHub login and commit email — never the git display name.
+  # A bare display name (e.g. a first name) is too generic and would match
+  # unrelated contributors with the same name in large forked repos, wrongly
+  # keeping those forks. Duplicates are harmless (git log ORs --author flags).
   AUTHORS=()
   [[ -n "$ME_LOGIN" ]] && AUTHORS+=("$ME_LOGIN")
   [[ -n "$email" ]] && AUTHORS+=("$email")
-  [[ -n "$name" ]] && AUTHORS+=("$name")
   if (( ${#EXTRA_AUTHORS[@]} > 0 )); then AUTHORS+=("${EXTRA_AUTHORS[@]}"); fi
 }
 
