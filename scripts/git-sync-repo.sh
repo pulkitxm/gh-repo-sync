@@ -3,7 +3,7 @@
 
 set -euo pipefail
 
-# shellcheck source=scripts/lib/common.sh
+# shellcheck source=scripts/common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
 usage() {

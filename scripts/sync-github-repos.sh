@@ -11,12 +11,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=scripts/lib/common.sh
-source "${SCRIPT_DIR}/scripts/lib/common.sh"
-# shellcheck source=scripts/lib/git-sync-repo.sh
-source "${SCRIPT_DIR}/scripts/lib/git-sync-repo.sh"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=scripts/common.sh
+source "${SCRIPT_DIR}/common.sh"
+# shellcheck source=scripts/git-sync-repo.sh
+source "${SCRIPT_DIR}/git-sync-repo.sh"
 
-DEFAULT_SYNC_ROOT="${SCRIPT_DIR}/GitHub"
+DEFAULT_SYNC_ROOT="${PROJECT_ROOT}/GitHub"
 
 # Default concurrency: scale to the machine. Repo sync is network-latency
 # bound, so we want roughly one job per core. Capped to a sane band.
@@ -55,7 +56,7 @@ AFFILIATIONS="owner,collaborator,organization_member,outside"
 
 # Repos matching a glob in this file are skipped entirely (never cloned or
 # updated). One "owner/repo" glob per line; '#' comments and blanks ignored.
-DEFAULT_IGNORE_FILE="${SCRIPT_DIR}/.syncignore"
+DEFAULT_IGNORE_FILE="${PROJECT_ROOT}/.syncignore"
 IGNORE_FILE="$DEFAULT_IGNORE_FILE"
 
 usage() {

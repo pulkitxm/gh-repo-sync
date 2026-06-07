@@ -9,10 +9,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=scripts/lib/common.sh
-source "${SCRIPT_DIR}/scripts/lib/common.sh"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=scripts/common.sh
+source "${SCRIPT_DIR}/common.sh"
 
-SYNC_ROOT="${SCRIPT_DIR}/GitHub"
+SYNC_ROOT="${PROJECT_ROOT}/GitHub"
 GENERATED_AT="$(date -u +"%Y-%m-%d %H:%M UTC")"
 SKIP_OWNERS=0
 
@@ -456,7 +457,7 @@ write_readme() {
     echo "  analytics.md"
     echo '```'
     echo ""
-  } >"${SCRIPT_DIR}/README.md"
+  } >"${PROJECT_ROOT}/README.md"
 }
 
 main() {
@@ -499,7 +500,7 @@ main() {
   write_readme "$accessible" "$failures"
 
   log "Wrote ${SYNC_ROOT}/analytics.md and per-owner analytics.md files"
-  log "Wrote ${SCRIPT_DIR}/README.md"
+  log "Wrote ${PROJECT_ROOT}/README.md"
 }
 
 main "$@"

@@ -3,8 +3,8 @@
 
 set -euo pipefail
 
-SCRIPT_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_LIB_DIR}/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DEFAULT_SYNC_ROOT="${PROJECT_ROOT}/GitHub"
 STATE_DIR_NAME=".sync-state"
 
