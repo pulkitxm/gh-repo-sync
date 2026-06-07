@@ -36,6 +36,7 @@ SYNC_ROOT="$DEFAULT_SYNC_ROOT"
 DRY_RUN=0
 JOBS="$(default_jobs)"
 SHALLOW=0
+PRUNE=1
 
 # Stop cleanly on Ctrl+C / TERM. Background jobs in a non-interactive shell
 # ignore SIGINT (POSIX), so a bare Ctrl+C leaves in-flight git/gh workers
@@ -75,6 +76,7 @@ Options:
   --shallow            Shallow clone new repos only (--depth 1)
   --skip-archived      Skip archived repositories
   --skip-forks         Skip forked repositories
+  --no-prune           Do not run prune-repos.sh after syncing
   --sync-root PATH     Destination root directory
   --ignore-file PATH   Skip repos matching glob patterns in PATH
                        (default: .syncignore beside this script, if present)
@@ -104,6 +106,7 @@ parse_args() {
       --shallow) SHALLOW=1; shift ;;
       --skip-archived) SKIP_ARCHIVED=1; shift ;;
       --skip-forks) SKIP_FORKS=1; shift ;;
+      --no-prune) PRUNE=0; shift ;;
       --sync-root)
         [[ $# -ge 2 ]] || die "--sync-root requires a path"
         SYNC_ROOT="$2"
@@ -273,8 +276,10 @@ run_sync() {
       (
         sync_one "$full_name" "$target" || echo "$full_name" >>"$failures_file"
       ) &
+      # Throttle to $JOBS concurrent. bash 3.2 (macOS default) has no
+      # `wait -n`, so poll the running-job count instead.
       while [[ "$(jobs -rp | wc -l | tr -d ' ')" -ge "$JOBS" ]]; do
-        wait -n 2>/dev/null || true
+        sleep 0.2
       done
     done <"$manifest"
     wait 2>/dev/null || true
@@ -364,6 +369,18 @@ main() {
 
   run_sync "$manifest" || true
   write_sync_state "$manifest" "$me"
+
+  if [[ "$PRUNE" -eq 1 ]]; then
+    local prune_sh="${SCRIPT_DIR}/prune-repos.sh"
+    if [[ -x "$prune_sh" ]]; then
+      log "Pruning repos you don't own and have no commits in..."
+      local prune_args=(--sync-root "$SYNC_ROOT" --ignore-file "$IGNORE_FILE" --me "$me")
+      [[ "$DRY_RUN" -eq 1 ]] && prune_args+=(--dry-run)
+      "$prune_sh" "${prune_args[@]}" || log "Prune step reported an error (continuing)."
+    else
+      log "Prune script not found or not executable: $prune_sh (skipping)"
+    fi
+  fi
 
   log "Done. Repositories are under: $SYNC_ROOT"
 }
