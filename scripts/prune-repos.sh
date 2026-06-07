@@ -3,10 +3,11 @@
 # prune-repos.sh — remove locally-mirrored repositories you are not involved in.
 #
 # For every cloned repo under <sync-root>/<owner>/<repo>/:
-#   - KEEP if you own it       (owner folder == your GitHub login)
-#   - KEEP if you authored      >= 1 commit on any branch (by your identities)
-#   - otherwise PRUNE:          delete the local clone AND append "owner/repo"
-#                               to the ignore file so future syncs skip it.
+#   - KEEP if you authored >= 1 commit on any branch (by your identities)
+#   - KEEP if it's your own ORIGINAL repo (you own it and it isn't a fork)
+#   - otherwise PRUNE (includes forks you own but never committed to):
+#       delete the local clone AND append "owner/repo" to the ignore file
+#       so future syncs skip it.
 #
 # Repos with uncommitted local changes / stashes are skipped unless --force.
 # Aborts if your identity can't be determined (so it can never delete blindly).
@@ -26,6 +27,7 @@ FORCE=0
 ME_LOGIN=""
 EXTRA_AUTHORS=()
 AUTHORS=()
+FORKS_FILE=""
 
 usage() {
   cat <<'EOF'
@@ -33,9 +35,10 @@ Usage: prune-repos.sh [OPTIONS]
 
 Remove locally-mirrored repositories you are not involved in. For each cloned
 repo under <sync-root>/<owner>/<repo>/:
-  - KEEP if you own it (owner folder == your GitHub login)
   - KEEP if you have at least one commit on any branch
+  - KEEP if it's your own original repo (you own it and it is not a fork)
   - otherwise DELETE the local clone and add "owner/repo" to the ignore file
+    (this includes forks you own but have no commits in)
 
 Options:
   -h, --help          Show this help
@@ -104,6 +107,29 @@ add_to_ignore() {
   grep -qxF "$fn" "$IGNORE_FILE" 2>/dev/null || printf '%s\n' "$fn" >>"$IGNORE_FILE"
 }
 
+# Fetch the set of forked repositories (one full_name per line) from GitHub.
+# On any failure the set is left empty, so owned repos are kept (safe default).
+fetch_forks() {
+  FORKS_FILE="$(mktemp)"
+  if ! command -v gh >/dev/null 2>&1; then
+    log "gh not found — cannot detect forks; your owned repos will all be kept"
+    return 0
+  fi
+  if ! gh api \
+      "user/repos?per_page=100&affiliation=owner,collaborator,organization_member,outside&sort=full_name" \
+      --paginate --jq '.[] | select(.fork) | .full_name' \
+      >"$FORKS_FILE" 2>/dev/null; then
+    log "Could not fetch fork list from GitHub; your owned repos will all be kept"
+    : >"$FORKS_FILE"
+  fi
+}
+
+# True if full_name is a fork (per the GitHub API list).
+is_fork() {
+  [[ -n "$FORKS_FILE" && -s "$FORKS_FILE" ]] || return 1
+  grep -qxF "$1" "$FORKS_FILE"
+}
+
 main() {
   parse_args "$@"
   require_cmd git
@@ -124,6 +150,12 @@ main() {
   log "Commit identities: ${AUTHORS[*]}"
   [[ "$DRY_RUN" -eq 1 ]] && log "DRY RUN — nothing will be deleted or ignored"
 
+  trap '[[ -n "${FORKS_FILE:-}" ]] && rm -f "$FORKS_FILE"' EXIT
+  fetch_forks
+  if [[ -s "$FORKS_FILE" ]]; then
+    log "Forks on GitHub: $(wc -l <"$FORKS_FILE" | tr -d ' ') (owned forks need a commit to be kept)"
+  fi
+
   local me_login_lc
   me_login_lc="$(printf '%s' "$ME_LOGIN" | tr 'A-Z' 'a-z')"
 
@@ -137,14 +169,16 @@ main() {
     name="$(basename "$d")"
     full_name="${owner}/${name}"
 
-    # Keep: you own it (case-insensitive login match).
     owner_lc="$(printf '%s' "$owner" | tr 'A-Z' 'a-z')"
-    if [[ "$owner_lc" == "$me_login_lc" ]]; then
+
+    # Keep: you have a commit in it (any branch).
+    if have_my_commit "$d"; then
       kept=$((kept + 1))
       continue
     fi
-    # Keep: you have a commit in it.
-    if have_my_commit "$d"; then
+    # Keep: your own ORIGINAL repo (you own it and it is not a fork).
+    # Forks you own but never committed to fall through to the prune path.
+    if [[ "$owner_lc" == "$me_login_lc" ]] && ! is_fork "$full_name"; then
       kept=$((kept + 1))
       continue
     fi
